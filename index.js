@@ -34,7 +34,7 @@ async function run() {
       const result = await usersCollection.find().toArray();
       res.send(result);
     })
-    
+
     app.post('/users', async(req, res)=>{
       const user = req.body;
       const query = {email: user.email}
@@ -49,7 +49,28 @@ async function run() {
       res.send(result);
     });
 
-
+    app.patch("/users-makeAdmin/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const updateDoc = {
+        $set:{
+          role: "admin",
+        }
+      }
+      const result = await usersCollection.updateOne(query, updateDoc)
+      res.send(result)
+    })
+    app.patch("/users-makeInstructor/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const updateDoc = {
+        $set:{
+          role: "instructor",
+        }
+      }
+      const result = await usersCollection.updateOne(query, updateDoc)
+      res.send(result)
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

@@ -10,6 +10,26 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 app.use(express.json());
 app.use(cors());
 
+// Verify JWT
+const verifyJwt =  (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if(!authorization){
+    return res.status(401).send({error: true, message: 'unauthorized access'})
+  }
+  const token = authorization.split(' ')[1];
+
+  // berar token;
+  jwt.verify(token, process.env.ACCESS_Token, (err, decoded) => {
+    if(err){
+      return res.status(401).send({error: true, message: 'unauthorized access'});
+    }
+    req.decoded = decoded;
+    next();
+  })
+
+}
+
+
 
 // MongoDb Collection Settings
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.nyrtlyj.mongodb.net/?retryWrites=true&w=majority`;

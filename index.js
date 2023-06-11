@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion } = require('mongodb');
@@ -71,6 +72,15 @@ async function run() {
       const result = await usersCollection.updateOne(query, updateDoc)
       res.send(result)
     })
+
+    app.delete("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = {email: email};
+      const result = await usersCollection.deleteOne(query)
+      res.send(result);
+    })
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

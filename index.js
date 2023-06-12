@@ -48,6 +48,7 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     const usersCollection = client.db("RoyAcademy").collection("users");
+    const instructorCollection = client.db("RoyAcademy").collection("instructor");
    
     // User JWT APIs
     app.post('/jwt', (req, res) =>{
@@ -107,6 +108,19 @@ async function run() {
       const result = await usersCollection.deleteOne(query)
       res.send(result);
     })
+
+    //Instructor API
+    app.get('/instructor', async(req,res)=>{
+      const result = await instructorCollection.find().toArray();
+      res.send(result);
+    })
+
+    app.post('instructor', async(req, res)=>{
+      const user = req.body;
+      const query = {email: user.email}
+      const result = await usersCollection.insertOne(query);
+      res.send(result);
+    });
 
 
     // Send a ping to confirm a successful connection

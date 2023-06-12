@@ -121,11 +121,18 @@ async function run() {
       const result = await classesCollection.insertOne(user);
       res.send(result);
     });
+
     app.get("/class/instructor/:email", async(req, res)=>{
       const email = req.params.email
       const query = {InstructorEmail: email}
       const classByInstructor = await classesCollection.find(query).toArray();
       res.send(classByInstructor)
+    })
+
+    // admin apis
+    app.get("/all-classes", async(req, res)=>{
+      const result = await classesCollection.find().toArray()
+      res.send(result)
     })
 
     // Send a ping to confirm a successful connection

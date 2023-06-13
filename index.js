@@ -241,6 +241,7 @@ async function run() {
       const result= await selectClassCollection.find(query).toArray();
       res.send(result);
     })
+    
     app.post("/select-classes", verifyJwt, async(req, res)=>{
       const selectClassInfo = req.body
       const setSelectClass = await selectClassCollection.insertOne(selectClassInfo)
@@ -267,31 +268,53 @@ async function run() {
         clientSecret: paymentMethod.client_secret,
       });
     });
-    // app.post("/payments", verifyJwt, async (req, res) => {
-    //   const payment = req.body;
-    //   console.log(payment)
-    //   const insertedResult = await paymentCollection.insertOne(payment);
+    app.post("/payments", verifyJwt, async (req, res) => {
+      const payment = req.body;
+      console.log(payment)
+      const insertedResult = await paymentCollection.insertOne(payment);
 
-    //   // delete the selected classes
-    //   const selectedClassIds = payment.cartId.map(
-    //     (id) => new ObjectId(id)
-    //   );
-    //   const query = { _id: { $in: selectedClassIds } };
-    //   const deletedResult = await selectClassCollection.deleteMany(query);
+      // delete the selected classes
+      const selectedClassIds = payment.cartId.map(
+        (id) => new ObjectId(id)
+      );
+      const query = { _id: { $in: selectedClassIds } };
+      const deletedResult = await selectClassCollection.deleteMany(query);
 
-    //   // Update the class documents
-    //   const classIds = payment.classIds.map((id) => new ObjectId(id));
-    //   const updateQuery = { _id: { $in: classIds } };
-    //   const updateOperation = {
-    //     $inc: { enrolledStudent: 1, seats: -1 },
-    //   };
-    //   const updateResult = await classesCollection.updateMany(
-    //     updateQuery,
-    //     updateOperation
-    //   );
+      // Update the class documents
+      const classIds = payment.classIds.map((id) => new ObjectId(id));
+      const updateQuery = { _id: { $in: classIds } };
+      const updateOperation = {
+        $inc: { enrolledStudent: 1, seats: -1 },
+      };
+      const updateResult = await classesCollection.updateMany(
+        updateQuery,
+        updateOperation
+      );
 
-    //   res.send({ insertedResult, deletedResult, updateResult });
-    // });
+      res.send({ insertedResult, deletedResult, updateResult });
+    });
+
+    app.get("/users/instructors", async (req, res) => {
+      const query = {role: "instructor"};
+      const result = await usersCollection.find(query).toArray()
+      res.send(result)
+    })
+
+    app.get("/payment-history/:email", async (req, res) => {
+      const email = req.params.email
+      const query = {email: email}
+      const result = await paymentCollection.find(query).sort({date:-1}).toArray()
+      res.send(result)
+    })
+
+    app.get("/popular-classes", async (req, res) => {
+      const query = {
+        status: "approved",
+      }
+      const result = await classesCollection.find(query).sort({enrolledStudent:-1}).limit(6).toArray()
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

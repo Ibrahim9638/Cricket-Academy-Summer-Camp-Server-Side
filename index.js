@@ -2,10 +2,11 @@ const express = require('express');
 const app = express();
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+
 const cors = require('cors');
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
-
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY)
 // Middleware
 app.use(express.json());
 app.use(cors());
@@ -14,16 +15,17 @@ app.use(cors());
 const verifyJwt =  (req, res, next) => {
   const authorization = req.headers.authorization;
   if(!authorization){
-    return res.status(401).send({error: true, message: 'unauthorized access'})
+    return res.status(401).send({error: true, message: 'unauthorized access 1'})
   }
   const token = authorization.split(' ')[1];
 
   // berar token;
-  jwt.verify(token, process.env.ACCESS_Token, (err, decoded) => {
+  jwt.verify(token, process.env.ACCESS_WEB_TOKEN, (err, decoded) => {
     if(err){
-      return res.status(401).send({error: true, message: 'unauthorized access'});
+      return res.status(401).send({error: true, message: 'unauthorized access 2'});
     }
     req.decoded = decoded;
+
     next();
   })
 
@@ -50,7 +52,8 @@ async function run() {
     const usersCollection = client.db("RoyAcademy").collection("users");
     const instructorCollection = client.db("RoyAcademy").collection("instructor");
     const classesCollection = client.db("RoyAcademy").collection("classes");
-   
+   const  selectClassCollection = client.db("RoyAcademy").collection("selectClass");
+   const paymentCollection = client.db("RoyAcademy").collection("payment");
     // User JWT APIs
     app.post('/jwt', (req, res) =>{
       const user = req.body;
@@ -58,7 +61,57 @@ async function run() {
       res.send({token});
     })
 
+    // verify admin 
+    // this admin verify work after verify jwt 
+   const verifyAdmin =async (req, res, next)=>{
+    const decodedEmail = req.decoded.email 
+    const query = {email: decodedEmail}
+    const user =await usersCollection.findOne(query)
+    if(user?.role !== "admin"){
+      return res.status(403).send({error:true, message:"UnAuthorized Access denied 3"})
+    }
+    next();
+   }
+    // check user isAdmin
+    app.get("/users/admin/:email", verifyJwt, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
 
+      const decodedEmail = req.decoded.email;
+      console.log({email, decodedEmail})
+      if (email !== decodedEmail) {
+        return res.send({ admin: false });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = { admin: user?.role === "admin" };
+      res.send(isAdmin);
+    });
+
+        // this instructor verify work after verify jwt 
+   const verifyInstructor =async (req, res, next)=>{
+    const decodedEmail = req.decoded.email 
+    const query = {email: decodedEmail}
+    const user =await usersCollection.findOne(query)
+    if(user?.role !== "instructor"){
+      return res.status(403).send({error:true, message:"UnAuthorized Access denied 3"})
+    }
+    next();
+   }
+        // check user isInstructor
+        app.get("/users/instructor/:email", verifyJwt, verifyInstructor, async (req, res) => {
+          const email = req.params.email;
+    
+          const decodedEmail = req.decoded.email;
+          console.log({email, decodedEmail})
+          if (email !== decodedEmail) {
+            return res.send({ admin: false });
+          }
+          const query = { email: email };
+          const user = await usersCollection.findOne(query);
+          const isAdmin = { admin: user?.role === "instructor" };
+          res.send(isAdmin);
+        });
+    
 
     // Users related Apis
     app.get('/users', async(req,res)=>{
@@ -135,6 +188,110 @@ async function run() {
       res.send(result)
     })
 
+    // manage clases 
+    app.patch("/approve-class/:id", async(req, res)=>{
+      const id = req.params.id
+      const query = {_id: new ObjectId(id)}
+      const {status} = req.body 
+      const updateDoc = {
+        $set:{
+          status 
+        }
+      }
+      const updateStatus = await classesCollection.updateOne(query, updateDoc)
+      res.send(updateStatus)
+    })
+    // denied  classes status 
+    app.patch("/denied-class/:id", async(req, res)=>{
+      const id = req.params.id
+      const query = {_id: new ObjectId(id)}
+      const {status} = req.body
+      const updateDoc = {
+        $set:{
+          status 
+        }
+      }
+      const updateStatus = await classesCollection.updateOne(query, updateDoc)
+      res.send(updateStatus)
+    })
+    app.patch("/feedback-class/:id", async(req, res)=>{
+      const id = req.params.id
+      const query = {_id: new ObjectId(id)}
+      const {feedback} = req.body
+      const updateDoc = {
+        $set:{
+          feedback: feedback,
+        }
+      }
+      const updateStatus = await classesCollection.updateOne(query, updateDoc)
+      res.send(updateStatus)
+    })
+
+    // Approved class 
+    app.get("/approved-classes", async(req, res)=>{
+      const query = {status : 'approved'}
+      const result = await classesCollection.find(query).toArray()
+      res.send(result)
+    })
+
+    //select class 
+    app.get('/select-classes', async(req, res)=>{
+      const email = req.params.email;
+      const query = {userEmail: email}
+      const result= await selectClassCollection.find(query).toArray();
+      res.send(result);
+    })
+    app.post("/select-classes", verifyJwt, async(req, res)=>{
+      const selectClassInfo = req.body
+      const setSelectClass = await selectClassCollection.insertOne(selectClassInfo)
+      res.send(setSelectClass)
+    })
+
+    app.get("/classbyIntructor/:email",verifyJwt, async(req, res)=>{
+      const email = req.params.email
+      const query = {userEmail: email}
+      const result = await selectClassCollection.find(query).toArray()
+      res.send(result) 
+    })
+    app.post("/create-payment-intent",verifyJwt,  async (req, res) => {
+      const { price } = req.body;
+      const amount = price * 100;
+
+      const paymentMethod = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentMethod.client_secret,
+      });
+    });
+    // app.post("/payments", verifyJwt, async (req, res) => {
+    //   const payment = req.body;
+    //   console.log(payment)
+    //   const insertedResult = await paymentCollection.insertOne(payment);
+
+    //   // delete the selected classes
+    //   const selectedClassIds = payment.cartId.map(
+    //     (id) => new ObjectId(id)
+    //   );
+    //   const query = { _id: { $in: selectedClassIds } };
+    //   const deletedResult = await selectClassCollection.deleteMany(query);
+
+    //   // Update the class documents
+    //   const classIds = payment.classIds.map((id) => new ObjectId(id));
+    //   const updateQuery = { _id: { $in: classIds } };
+    //   const updateOperation = {
+    //     $inc: { enrolledStudent: 1, seats: -1 },
+    //   };
+    //   const updateResult = await classesCollection.updateMany(
+    //     updateQuery,
+    //     updateOperation
+    //   );
+
+    //   res.send({ insertedResult, deletedResult, updateResult });
+    // });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

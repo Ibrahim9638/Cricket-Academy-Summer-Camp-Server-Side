@@ -48,7 +48,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    client.connect();
     const usersCollection = client.db("RoyAcademy").collection("users");
     const instructorCollection = client.db("RoyAcademy").collection("instructor");
     const classesCollection = client.db("RoyAcademy").collection("classes");
@@ -255,7 +255,7 @@ async function run() {
       res.send(result) 
     })
      // student get all enrolled classes
-     app.get("/enrolled-classes/:email",  async (req, res) => {
+     app.get("/enrolledClasses/:email",  async (req, res) => {
       const email = req.params.email;
 
       // Find the enrolled classes for the student in the payment collection
@@ -265,14 +265,14 @@ async function run() {
         .toArray();
 
       // Extract the class IDs from the enrolled classes
-      let classIds = [];
+      let classesId = [];
       enrolledClasses.forEach((payment) => {
-        classIds = classIds.concat(payment.classIds.flat());
+        classesId = classesId.concat(payment.classIds.flat());
       });
 
       // Find the corresponding classes in the class collection
       const classQuery = {
-        _id: { $in: classIds.map((id) => new ObjectId(id)) },
+        _id: { $in: classesId.map((id) => new ObjectId(id)) },
       };
       const enrolledClassDetails = await classesCollection
         .find(classQuery)

@@ -235,7 +235,7 @@ async function run() {
     })
 
     //select class 
-    app.get('/select-classes', async(req, res)=>{
+    app.get('/select-classes/:email', async(req, res)=>{
       const email = req.params.email;
       const query = {userEmail: email}
       const result= await selectClassCollection.find(query).toArray();
@@ -254,6 +254,45 @@ async function run() {
       const result = await selectClassCollection.find(query).toArray()
       res.send(result) 
     })
+     // student get all enrolled classes
+     app.get("/enrolled-classes/:email",  async (req, res) => {
+      const email = req.params.email;
+
+      // Find the enrolled classes for the student in the payment collection
+      const paymentQuery = { email: email };
+      const enrolledClasses = await paymentCollection
+        .find(paymentQuery)
+        .toArray();
+
+      // Extract the class IDs from the enrolled classes
+      let classIds = [];
+      enrolledClasses.forEach((payment) => {
+        classIds = classIds.concat(payment.classIds.flat());
+      });
+
+      // Find the corresponding classes in the class collection
+      const classQuery = {
+        _id: { $in: classIds.map((id) => new ObjectId(id)) },
+      };
+      const enrolledClassDetails = await classesCollection
+        .find(classQuery)
+        .toArray();
+
+      // Combine class details with payment date
+      const enrichedEnrolledClasses = enrolledClassDetails.map(
+        (classDetail) => {
+          const payment = enrolledClasses.find((payment) =>
+            payment.classIds.flat().includes(classDetail._id.toString())
+          );
+          return {
+            classDetail,
+            paymentDate: payment.date,
+          };
+        }
+      );
+
+      res.send(enrichedEnrolledClasses);
+    });
     app.post("/create-payment-intent",verifyJwt,  async (req, res) => {
       const { price } = req.body;
       const amount = price * 100;
@@ -300,7 +339,7 @@ async function run() {
       res.send(result)
     })
 
-    app.get("/payment-history/:email", async (req, res) => {
+    app.get("/dashboard/payment-history/:email", async (req, res) => {
       const email = req.params.email
       const query = {email: email}
       const result = await paymentCollection.find(query).sort({date:-1}).toArray()
